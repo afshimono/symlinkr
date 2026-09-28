@@ -327,6 +327,17 @@ test('herdr-plugin.toml registers symlinkr on linux and macos', () => {
   assert.doesNotMatch(text, /windows/);
 });
 
+test('install.sh installs the GitHub plugin with Node 20 and no build', () => {
+  const text = fs.readFileSync(path.join(root, 'install.sh'), 'utf8');
+  assert.match(text, /^#!\/bin\/sh\n/);
+  assert.match(text, /set -eu\n/);
+  assert.match(text, /herdr plugin install afshimono\/symlinkr --yes\n/);
+  assert.match(text, /process\.versions\.node/);
+  assert.doesNotMatch(text, /npm install|cargo |go build/);
+  const stat = fs.statSync(path.join(root, 'install.sh'));
+  assert.equal(stat.mode & 0o111, 0o111);
+});
+
 test('package.json is a private module without dependencies', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   assert.equal(pkg.private, true);

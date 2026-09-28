@@ -18,11 +18,19 @@ While you work on this checkout, point Herdr at it with:
 herdr plugin link <checkout>
 ```
 
-To install from this repository once it is the source you want to use:
+To install from this repository:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/afshimono/symlinkr/main/install.sh | sh
+```
+
+That script checks for Herdr and Node 20 or newer, then runs:
 
 ```bash
 herdr plugin install afshimono/symlinkr
 ```
+
+Install clones the default branch. There is no build and no release artifact. Node runs `bin/symlinkr.js` as it is in the repo. To pin a git tag later, pass `--ref` to `herdr plugin install`.
 
 ## What gets linked
 
