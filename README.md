@@ -32,7 +32,7 @@ Today Symlinkr links `.env`, `.env.local`, and files whose names match `.env.*.l
 
 A path is linked only when it exists in the main checkout, is missing in the destination worktree, and is gitignored in that worktree. If the destination already has a real file or directory at that path, Symlinkr leaves it alone. If there is already a symlink that points at the same file as the main checkout, it is left alone; if the symlink points somewhere else, it is left alone too. Symlinkr never links the main checkout to itself.
 
-Each run prints one line per candidate path on stdout: `link <path>` or `skip <path> <reason>`. It never prints file contents.
+If the destination is the main checkout, stdout is only `skip . self`. If `.symlinkr.toml` sets `enabled = false`, stdout is only `skip . disabled`. In both cases, candidates such as `.env` are not listed. Only after those checks does Symlinkr print one line per candidate on stdout: `link <path>` or `skip <path> <reason>`. It never prints file contents.
 
 ## Configuration
 
