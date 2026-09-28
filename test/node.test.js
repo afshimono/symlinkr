@@ -159,7 +159,7 @@ test('links gitignored pnp and yarn cache paths; package.json stays a tracked fi
   }
 });
 
-test('dist and .next stay ordinary directories when gitignored', () => {
+test('gitignored dist and .next in main are not linker candidates', () => {
   const repo = makeRepo({
     tracked: { 'package.json': '{"name":"root"}\n' },
   });
@@ -168,16 +168,30 @@ test('dist and .next stay ordinary directories when gitignored', () => {
     writeRel(repo.main, 'dist/out.js', 'console.log(1);\n');
     mkdirRel(repo.main, '.next');
     writeRel(repo.main, '.next/build-manifest.json', '{}');
+    const result = runSymlinkr(repo.wt);
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout.split('\n').some((line) => line.includes('dist')), false);
+    assert.equal(result.stdout.split('\n').some((line) => line.includes('.next')), false);
+    assert.equal(fs.existsSync(path.join(repo.wt, 'dist')), false);
+    assert.equal(fs.existsSync(path.join(repo.wt, '.next')), false);
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('an existing dist directory in the worktree is not replaced', () => {
+  const repo = makeRepo({
+    tracked: { 'package.json': '{"name":"root"}\n' },
+  });
+  try {
+    mkdirRel(repo.main, 'dist');
+    writeRel(repo.main, 'dist/out.js', 'console.log(1);\n');
     mkdirRel(repo.wt, 'dist');
     writeRel(repo.wt, 'dist/local-only.js', 'local\n');
     const result = runSymlinkr(repo.wt);
     assert.equal(result.status, 0);
-    assert.equal(result.stdout.includes('link dist'), false);
-    assert.equal(result.stdout.includes('link .next'), false);
-    assert.equal(fs.existsSync(path.join(repo.wt, 'dist')), true);
     assertOrdinaryDirectory(path.join(repo.wt, 'dist'));
     assert.equal(fs.readFileSync(path.join(repo.wt, 'dist/local-only.js'), 'utf8'), 'local\n');
-    assert.equal(fs.existsSync(path.join(repo.wt, '.next')), false);
   } finally {
     repo.cleanup();
   }
