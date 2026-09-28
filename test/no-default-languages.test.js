@@ -73,8 +73,16 @@ function assertRealDirectory(dirPath) {
   assert.equal(stat.isSymbolicLink(), false);
 }
 
-function assertNoLinkLines(stdout) {
-  assert.equal(stdout.includes('link '), false, stdout);
+function assertStdoutEmpty(stdout) {
+  assert.equal(stdout, '', stdout);
+}
+
+function assertRelativeLink(destPath, sourcePath) {
+  const stat = fs.lstatSync(destPath);
+  assert.equal(stat.isSymbolicLink(), true);
+  const target = fs.readlinkSync(destPath);
+  assert.equal(path.isAbsolute(target), false);
+  assert.equal(fs.realpathSync(destPath), fs.realpathSync(sourcePath));
 }
 
 function seedBuildDirs(main, wt, dirs) {
@@ -94,7 +102,7 @@ test('Java marker links no build directories', () => {
     const result = runSymlinkr(repo.wt);
     assert.equal(result.status, 0);
     assert.equal(result.stderr, '');
-    assertNoLinkLines(result.stdout);
+    assertStdoutEmpty(result.stdout);
     assertRealDirectory(path.join(repo.wt, 'target'));
     assertRealDirectory(path.join(repo.wt, 'build'));
     assertRealDirectory(path.join(repo.wt, '.gradle'));
@@ -112,7 +120,7 @@ test('C# marker links no build directories', () => {
     seedBuildDirs(repo.main, repo.wt, ['bin', 'obj']);
     const result = runSymlinkr(repo.wt);
     assert.equal(result.status, 0);
-    assertNoLinkLines(result.stdout);
+    assertStdoutEmpty(result.stdout);
     assertRealDirectory(path.join(repo.wt, 'bin'));
     assertRealDirectory(path.join(repo.wt, 'obj'));
   } finally {
@@ -129,7 +137,7 @@ test('Rust marker links no target directory', () => {
     seedBuildDirs(repo.main, repo.wt, ['target']);
     const result = runSymlinkr(repo.wt);
     assert.equal(result.status, 0);
-    assertNoLinkLines(result.stdout);
+    assertStdoutEmpty(result.stdout);
     assertRealDirectory(path.join(repo.wt, 'target'));
   } finally {
     repo.cleanup();
@@ -145,7 +153,7 @@ test('C++ marker links no build directories', () => {
     seedBuildDirs(repo.main, repo.wt, ['build', 'cmake-build-debug']);
     const result = runSymlinkr(repo.wt);
     assert.equal(result.status, 0);
-    assertNoLinkLines(result.stdout);
+    assertStdoutEmpty(result.stdout);
     assertRealDirectory(path.join(repo.wt, 'build'));
     assertRealDirectory(path.join(repo.wt, 'cmake-build-debug'));
   } finally {
@@ -162,7 +170,7 @@ test('Haskell marker links no build directories', () => {
     seedBuildDirs(repo.main, repo.wt, ['dist-newstyle', '.stack-work']);
     const result = runSymlinkr(repo.wt);
     assert.equal(result.status, 0);
-    assertNoLinkLines(result.stdout);
+    assertStdoutEmpty(result.stdout);
     assertRealDirectory(path.join(repo.wt, 'dist-newstyle'));
     assertRealDirectory(path.join(repo.wt, '.stack-work'));
   } finally {
@@ -179,7 +187,7 @@ test('Lua marker links no lua_modules directory', () => {
     seedBuildDirs(repo.main, repo.wt, ['lua_modules']);
     const result = runSymlinkr(repo.wt);
     assert.equal(result.status, 0);
-    assertNoLinkLines(result.stdout);
+    assertStdoutEmpty(result.stdout);
     assertRealDirectory(path.join(repo.wt, 'lua_modules'));
   } finally {
     repo.cleanup();
@@ -198,7 +206,144 @@ test('nested Rust crate does not link crates/core/target', () => {
     seedBuildDirs(repo.main, repo.wt, ['target', 'crates/core/target']);
     const result = runSymlinkr(repo.wt);
     assert.equal(result.status, 0);
-    assertNoLinkLines(result.stdout);
+    assertStdoutEmpty(result.stdout);
+    assertRealDirectory(path.join(repo.wt, 'crates/core/target'));
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('Java marker links nested env and no build directories', () => {
+  const repo = makeRepo({
+    gitignore: '.env\n.env.*\ntarget/\nbuild/\n.gradle/\n',
+    tracked: { 'app/pom.xml': '<project/>\n' },
+  });
+  try {
+    writeRel(repo.main, 'app/.env', 'JAVA=1\n');
+    seedBuildDirs(repo.main, repo.wt, ['target', 'build', '.gradle']);
+    const result = runSymlinkr(repo.wt);
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout, 'link app/.env\n');
+    assertRelativeLink(path.join(repo.wt, 'app/.env'), path.join(repo.main, 'app/.env'));
+    assertRealDirectory(path.join(repo.wt, 'target'));
+    assertRealDirectory(path.join(repo.wt, 'build'));
+    assertRealDirectory(path.join(repo.wt, '.gradle'));
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('C# marker links nested env and no build directories', () => {
+  const repo = makeRepo({
+    gitignore: '.env\n.env.*\nbin/\nobj/\n',
+    tracked: { 'src/App.csproj': '<Project/>\n' },
+  });
+  try {
+    writeRel(repo.main, 'src/.env', 'CSHARP=1\n');
+    seedBuildDirs(repo.main, repo.wt, ['bin', 'obj']);
+    const result = runSymlinkr(repo.wt);
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout, 'link src/.env\n');
+    assertRelativeLink(path.join(repo.wt, 'src/.env'), path.join(repo.main, 'src/.env'));
+    assertRealDirectory(path.join(repo.wt, 'bin'));
+    assertRealDirectory(path.join(repo.wt, 'obj'));
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('Rust marker links nested env and no target directory', () => {
+  const repo = makeRepo({
+    gitignore: '.env\n.env.*\ntarget/\n',
+    tracked: { 'crate/Cargo.toml': '[package]\nname = "crate"\n' },
+  });
+  try {
+    writeRel(repo.main, 'crate/.env', 'RUST=1\n');
+    seedBuildDirs(repo.main, repo.wt, ['target']);
+    const result = runSymlinkr(repo.wt);
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout, 'link crate/.env\n');
+    assertRelativeLink(path.join(repo.wt, 'crate/.env'), path.join(repo.main, 'crate/.env'));
+    assertRealDirectory(path.join(repo.wt, 'target'));
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('C++ marker links nested env and no build directories', () => {
+  const repo = makeRepo({
+    gitignore: '.env\n.env.*\nbuild/\ncmake-build-debug/\n',
+    tracked: { 'cmake/CMakeLists.txt': 'cmake_minimum_required(VERSION 3.0)\n' },
+  });
+  try {
+    writeRel(repo.main, 'cmake/.env', 'CPP=1\n');
+    seedBuildDirs(repo.main, repo.wt, ['build', 'cmake-build-debug']);
+    const result = runSymlinkr(repo.wt);
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout, 'link cmake/.env\n');
+    assertRelativeLink(path.join(repo.wt, 'cmake/.env'), path.join(repo.main, 'cmake/.env'));
+    assertRealDirectory(path.join(repo.wt, 'build'));
+    assertRealDirectory(path.join(repo.wt, 'cmake-build-debug'));
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('Haskell marker links nested env and no build directories', () => {
+  const repo = makeRepo({
+    gitignore: '.env\n.env.*\ndist-newstyle/\n.stack-work/\n',
+    tracked: { 'pkg/app.cabal': 'name: app\n' },
+  });
+  try {
+    writeRel(repo.main, 'pkg/.env', 'HASKELL=1\n');
+    seedBuildDirs(repo.main, repo.wt, ['dist-newstyle', '.stack-work']);
+    const result = runSymlinkr(repo.wt);
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout, 'link pkg/.env\n');
+    assertRelativeLink(path.join(repo.wt, 'pkg/.env'), path.join(repo.main, 'pkg/.env'));
+    assertRealDirectory(path.join(repo.wt, 'dist-newstyle'));
+    assertRealDirectory(path.join(repo.wt, '.stack-work'));
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('Lua marker links nested env and no lua_modules directory', () => {
+  const repo = makeRepo({
+    gitignore: '.env\n.env.*\nlua_modules/\n',
+    tracked: { 'pkg/app-1.0.0-1.rockspec': 'rockspec_format = "3.0"\n' },
+  });
+  try {
+    writeRel(repo.main, 'pkg/.env', 'LUA=1\n');
+    seedBuildDirs(repo.main, repo.wt, ['lua_modules']);
+    const result = runSymlinkr(repo.wt);
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout, 'link pkg/.env\n');
+    assertRelativeLink(path.join(repo.wt, 'pkg/.env'), path.join(repo.main, 'pkg/.env'));
+    assertRealDirectory(path.join(repo.wt, 'lua_modules'));
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('nested Rust crate links env and does not link crates/core/target', () => {
+  const repo = makeRepo({
+    gitignore: '.env\n.env.*\ntarget/\ncrates/core/target/\n',
+    tracked: {
+      'Cargo.toml': '[workspace]\nmembers = ["crates/core"]\n',
+      'crates/core/Cargo.toml': '[package]\nname = "core"\n',
+    },
+  });
+  try {
+    writeRel(repo.main, 'crates/core/.env', 'CORE=1\n');
+    seedBuildDirs(repo.main, repo.wt, ['target', 'crates/core/target']);
+    const result = runSymlinkr(repo.wt);
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout, 'link crates/core/.env\n');
+    assertRelativeLink(
+      path.join(repo.wt, 'crates/core/.env'),
+      path.join(repo.main, 'crates/core/.env'),
+    );
     assertRealDirectory(path.join(repo.wt, 'crates/core/target'));
   } finally {
     repo.cleanup();
