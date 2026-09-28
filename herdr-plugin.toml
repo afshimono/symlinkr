@@ -1,0 +1,20 @@
+id = "symlinkr"
+name = "Symlinkr"
+version = "0.1.0"
+min_herdr_version = "0.7.0"
+description = "Symlink gitignored env files and dependency directories into Git worktrees"
+platforms = ["linux", "macos"]
+
+[[actions]]
+id = "link"
+title = "Link worktree resources"
+contexts = ["workspace"]
+command = ["node", "bin/symlinkr.js"]
+
+[[events]]
+on = "worktree.created"
+command = ["node", "bin/symlinkr.js"]
+
+[[events]]
+on = "worktree.opened"
+command = ["node", "bin/symlinkr.js"]
